@@ -1,0 +1,116 @@
+name: Release
+
+# Nooobhh/xianyu-bot（私有）推 v* tag 会派发到这里：用只读 deploy key 拉源码，打 macOS
+# 通用包（Apple Silicon + Intel 一个 dmg），用 Tauri updater 私钥签名更新包，连同
+# latest.json 发到本仓库的 Releases。已装的应用读 releases/latest/download/latest.json 检查更新。
+#
+# 不做 Apple 签名公证：dmg 第一次打开要右键 → 打开；自动更新靠 updater 的 minisign 签名校验。
+#
+# Secrets（只在本仓库）：
+# - SOURCE_DEPLOY_KEY：Nooobhh/xianyu-bot 的只读 deploy key 私钥
+# - TAURI_SIGNING_PRIVATE_KEY：updater 签名私钥（无密码），公钥在源码 src-tauri/tauri.conf.json
+
+on:
+  repository_dispatch:
+    types: [release]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: '要构建的 xianyu-bot git ref（tag 或分支）'
+        required: true
+        type: string
+      version:
+        description: '版本号（如 1.1.0，不带 v）'
+        required: true
+        type: string
+      publish:
+        description: '发布 Release（关掉 = 只构建试跑，产物在 Artifacts）'
+        type: boolean
+        default: true
+
+env:
+  REF: ${{ github.event.client_payload.ref || github.event.inputs.ref }}
+  VERSION: ${{ github.event.client_payload.version || github.event.inputs.version }}
+
+jobs:
+  mac:
+    runs-on: macos-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout xianyu-bot source code
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          repository: Nooobhh/xianyu-bot
+          ssh-key: ${{ secrets.SOURCE_DEPLOY_KEY }}
+          ref: ${{ env.REF }}
+
+      - name: Check version
+        run: |
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::版本号不对：$VERSION"; exit 1; }
+          grep -qx "version = \"$VERSION\"" Cargo.toml || { echo "::error::Cargo.toml 的版本不是 $VERSION"; exit 1; }
+          [ "$(jq -r .version src-tauri/tauri.conf.json)" = "$VERSION" ] || { echo "::error::tauri.conf.json 的版本不是 $VERSION"; exit 1; }
+          grep -q "^## \[$VERSION\]" CHANGELOG.md || { echo "::error::CHANGELOG.md 没有 $VERSION 的版本块"; exit 1; }
+
+      - name: Setup Rust
+        run: |
+          rustup update stable
+          rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
+      - name: Cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install tauri-cli
+        run: cargo install tauri-cli --version "^2" --locked
+
+      - name: Build
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+        run: cargo tauri build --target universal-apple-darwin
+
+      - name: Collect
+        run: |
+          B=target/universal-apple-darwin/release/bundle
+          mkdir dist
+          cp "$B"/dmg/*.dmg "dist/xianyu-bot_${VERSION}_universal.dmg"
+          cp "$B/macos/xianyu-bot.app.tar.gz" dist/xianyu-bot_universal.app.tar.gz
+          # 更新说明 = CHANGELOG 里这一版的主题 + 版本块（应用弹窗和 Release 页都用它）
+          HEAD=$(grep -m1 "^## \[$VERSION\]" CHANGELOG.md)
+          THEME=""
+          [[ "$HEAD" == *" — "* ]] && THEME="${HEAD#* — }"
+          BLOCK=$(awk -v h="## [$VERSION]" 'index($0, h) == 1 {on = 1; next} on && /^## \[/ {exit} on' CHANGELOG.md)
+          NOTES=$(printf '%s\n\n%s\n' "$THEME" "$BLOCK" | sed '/./,$!d')
+          URL="https://github.com/${{ github.repository }}/releases/download/v$VERSION/xianyu-bot_universal.app.tar.gz"
+          SIG=$(cat "$B/macos/xianyu-bot.app.tar.gz.sig")
+          jq -n --arg v "$VERSION" --arg notes "$NOTES" --arg sig "$SIG" --arg url "$URL" \
+            --arg date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            '{version: $v, notes: $notes, pub_date: $date,
+              platforms: {"darwin-aarch64": {signature: $sig, url: $url}, "darwin-x86_64": {signature: $sig, url: $url}}}' \
+            > dist/latest.json
+          {
+            echo "$NOTES"
+            echo
+            echo "### 安装"
+            echo
+            echo "下载 \`xianyu-bot_${VERSION}_universal.dmg\`（Apple Silicon / Intel 通用），把应用拖进「应用程序」，第一次打开要右键 → 打开。已装的应用会自己提示更新。"
+          } > "$RUNNER_TEMP/notes.md"
+          cat dist/latest.json
+          ls -la dist
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: xianyu-bot-${{ env.VERSION }}
+          path: dist/*
+          if-no-files-found: error
+
+      - name: Create Release
+        if: github.event_name != 'workflow_dispatch' || inputs.publish
+        uses: softprops/action-gh-release@a06a81a03ee405af7f2048a818ed3f03bbf83c7b # v2.5.0
+        with:
+          tag_name: v${{ env.VERSION }}
+          name: xianyu-bot v${{ env.VERSION }}
+          body_path: ${{ runner.temp }}/notes.md
+          files: dist/*
