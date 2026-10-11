@@ -8,7 +8,14 @@ xianyu-bot 的构建产物（源码仓库私有）。那边推 `v*` tag 会触�
 
 ## 安装
 
-打开 dmg，把 xianyu-bot 拖进「应用程序」。应用没做 Apple 签名公证，第一次要在 Finder 里**右键 → 打开**。
+打开 dmg，把 xianyu-bot 拖进「应用程序」。
+
+应用没做 Apple 签名公证，第一次打开会提示「无法验证」（macOS 15 起右键打开也绕不过去），二选一放行：
+
+- 点「完成」，到「系统设置 → 隐私与安全性」底部点「仍要打开」，输入密码后再打开一次
+- 或在终端运行 `xattr -dr com.apple.quarantine /Applications/xianyu-bot.app`
+
+只有第一次需要：应用自己装的更新不会再被拦。
 
 要在「应用程序」里运行：直接从 dmg 里打开的没法自动更新。
 

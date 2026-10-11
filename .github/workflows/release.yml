@@ -4,7 +4,7 @@ name: Release
 # 通用包（Apple Silicon + Intel 一个 dmg），用 Tauri updater 私钥签名更新包，连同
 # latest.json 发到本仓库的 Releases。已装的应用读 releases/latest/download/latest.json 检查更新。
 #
-# 不做 Apple 签名公证：dmg 第一次打开要右键 → 打开；自动更新靠 updater 的 minisign 签名校验。
+# 不做 Apple 签名公证：第一次打开要在「隐私与安全性」里「仍要打开」；自动更新靠 updater 的 minisign 签名校验。
 #
 # Secrets（只在本仓库）：
 # - SOURCE_DEPLOY_KEY：Nooobhh/xianyu-bot 的只读 deploy key 私钥
@@ -95,7 +95,7 @@ jobs:
             echo
             echo "### 安装"
             echo
-            echo "下载 \`xianyu-bot-macos-universal.dmg\`（Apple Silicon / Intel 通用），把应用拖进「应用程序」，第一次打开要右键 → 打开。已装的应用会自己提示更新。"
+            echo "下载 \`xianyu-bot-macos-universal.dmg\`（Apple Silicon / Intel 通用），把应用拖进「应用程序」。没做 Apple 公证，第一次打开被拦时到「系统设置 → 隐私与安全性」点「仍要打开」，或终端运行 \`xattr -dr com.apple.quarantine /Applications/xianyu-bot.app\`。已装的应用会自己提示更新。"
           } > "$RUNNER_TEMP/notes.md"
           cat dist/latest.json
           ls -la dist
