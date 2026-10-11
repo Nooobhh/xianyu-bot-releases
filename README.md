@@ -1,9 +1,17 @@
 # xianyu-bot-releases
 
-xianyu-bot Mac 应用的安装包发布处，源码不在这里。
+xianyu-bot 的构建产物（源码仓库私有）。那边推 `v*` tag 会触发这里的 workflow：构建、签名，然后发布 Release。
 
-- 下载：[最新 Release](../../releases/latest) 里的 `xianyu-bot_<版本>_universal.dmg`（Apple Silicon / Intel 通用）
-- 安装：把应用拖进「应用程序」；没做 Apple 公证，第一次打开要右键 → 打开
-- 更新：已装的应用会自己检查新版本（读最新 Release 的 `latest.json`），弹窗里点「立即更新」
+从 [Releases](https://github.com/Nooobhh/xianyu-bot-releases/releases/latest) 下载最新版：
 
-构建由源码仓库推 `v*` tag 触发（`repository_dispatch`），流程见 `.github/workflows/release.yml`。
+- macOS（Apple Silicon / Intel 通用）：[`xianyu-bot-macos-universal.dmg`](https://github.com/Nooobhh/xianyu-bot-releases/releases/latest/download/xianyu-bot-macos-universal.dmg)
+
+## 安装
+
+打开 dmg，把 xianyu-bot 拖进「应用程序」。应用没做 Apple 签名公证，第一次要在 Finder 里**右键 → 打开**。
+
+要在「应用程序」里运行：直接从 dmg 里打开的没法自动更新。
+
+## 更新
+
+应用启动后和之后每 6 小时检查一次新版本（读最新 Release 的 `latest.json`）。有新版会弹窗显示更新内容，点「立即更新」就下载、校验签名、自动重启；也可以跳过这个版本，之后想装时点顶栏的「更新」。

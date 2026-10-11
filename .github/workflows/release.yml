@@ -73,16 +73,17 @@ jobs:
       - name: Collect
         run: |
           B=target/universal-apple-darwin/release/bundle
+          # 文件名不带版本号，releases/latest/download/<名字> 永远指向最新版
           mkdir dist
-          cp "$B"/dmg/*.dmg "dist/xianyu-bot_${VERSION}_universal.dmg"
-          cp "$B/macos/xianyu-bot.app.tar.gz" dist/xianyu-bot_universal.app.tar.gz
+          cp "$B"/dmg/*.dmg dist/xianyu-bot-macos-universal.dmg
+          cp "$B/macos/xianyu-bot.app.tar.gz" dist/xianyu-bot-macos-universal.app.tar.gz
           # 更新说明 = CHANGELOG 里这一版的主题 + 版本块（应用弹窗和 Release 页都用它）
           HEAD=$(grep -m1 "^## \[$VERSION\]" CHANGELOG.md)
           THEME=""
           [[ "$HEAD" == *" — "* ]] && THEME="${HEAD#* — }"
           BLOCK=$(awk -v h="## [$VERSION]" 'index($0, h) == 1 {on = 1; next} on && /^## \[/ {exit} on' CHANGELOG.md)
           NOTES=$(printf '%s\n\n%s\n' "$THEME" "$BLOCK" | sed '/./,$!d')
-          URL="https://github.com/${{ github.repository }}/releases/download/v$VERSION/xianyu-bot_universal.app.tar.gz"
+          URL="https://github.com/${{ github.repository }}/releases/download/v$VERSION/xianyu-bot-macos-universal.app.tar.gz"
           SIG=$(cat "$B/macos/xianyu-bot.app.tar.gz.sig")
           jq -n --arg v "$VERSION" --arg notes "$NOTES" --arg sig "$SIG" --arg url "$URL" \
             --arg date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
@@ -94,7 +95,7 @@ jobs:
             echo
             echo "### 安装"
             echo
-            echo "下载 \`xianyu-bot_${VERSION}_universal.dmg\`（Apple Silicon / Intel 通用），把应用拖进「应用程序」，第一次打开要右键 → 打开。已装的应用会自己提示更新。"
+            echo "下载 \`xianyu-bot-macos-universal.dmg\`（Apple Silicon / Intel 通用），把应用拖进「应用程序」，第一次打开要右键 → 打开。已装的应用会自己提示更新。"
           } > "$RUNNER_TEMP/notes.md"
           cat dist/latest.json
           ls -la dist
