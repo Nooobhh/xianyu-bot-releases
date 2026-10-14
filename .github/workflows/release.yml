@@ -77,17 +77,25 @@ jobs:
           mkdir dist
           cp "$B"/dmg/*.dmg dist/xianyu-bot-macos-universal.dmg
           cp "$B/macos/xianyu-bot.app.tar.gz" dist/xianyu-bot-macos-universal.app.tar.gz
-          # 更新说明 = CHANGELOG 里这一版的主题 + 版本块（应用弹窗和 Release 页都用它）
-          HEAD=$(grep -m1 "^## \[$VERSION\]" CHANGELOG.md)
-          THEME=""
-          [[ "$HEAD" == *" — "* ]] && THEME="${HEAD#* — }"
-          BLOCK=$(awk -v h="## [$VERSION]" 'index($0, h) == 1 {on = 1; next} on && /^## \[/ {exit} on' CHANGELOG.md)
-          NOTES=$(printf '%s\n\n%s\n' "$THEME" "$BLOCK" | sed '/./,$!d')
+          # 更新说明 = CHANGELOG 里一版的主题 + 版本块（应用弹窗和 Release 页都用它）
+          notes_of() {
+            local head theme="" block
+            head=$(grep -m1 "^## \[$1\]" CHANGELOG.md)
+            [[ "$head" == *" — "* ]] && theme="${head#* — }"
+            block=$(awk -v h="## [$1]" 'index($0, h) == 1 {on = 1; next} on && /^## \[/ {exit} on' CHANGELOG.md)
+            printf '%s\n\n%s\n' "$theme" "$block" | sed '/./,$!d'
+          }
+          NOTES=$(notes_of "$VERSION")
+          # 应用差好几版时，弹窗把当前版本之后的每一版都列出来：latest.json 带上这一版往前最多 30 版，每版一条（新的在前）
+          HISTORY='[]'
+          for V in $(grep -oE '^## \[[0-9]+\.[0-9]+\.[0-9]+\]' CHANGELOG.md | tr -d '#[] ' | awk -v v="$VERSION" '$0 == v {on = 1} on' | head -30); do
+            HISTORY=$(jq -c --arg v "$V" --arg n "$(notes_of "$V")" '. + [{version: $v, notes: $n}]' <<<"$HISTORY")
+          done
           URL="https://github.com/${{ github.repository }}/releases/download/v$VERSION/xianyu-bot-macos-universal.app.tar.gz"
           SIG=$(cat "$B/macos/xianyu-bot.app.tar.gz.sig")
           jq -n --arg v "$VERSION" --arg notes "$NOTES" --arg sig "$SIG" --arg url "$URL" \
-            --arg date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            '{version: $v, notes: $notes, pub_date: $date,
+            --arg date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --argjson changelog "$HISTORY" \
+            '{version: $v, notes: $notes, pub_date: $date, changelog: $changelog,
               platforms: {"darwin-aarch64": {signature: $sig, url: $url}, "darwin-x86_64": {signature: $sig, url: $url}}}' \
             > dist/latest.json
           {
